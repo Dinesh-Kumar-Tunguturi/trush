@@ -1,6 +1,6 @@
 from django.urls import path
 from main import views
-from main import auth_views, payment_views, score_utils
+
 
 urlpatterns = [
     # Basic Views

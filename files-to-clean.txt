@@ -1,0 +1,6 @@
+templates/main/score_utils.py
+templates/main/utils.py
+main/auth_views.py
+templates/main/auth_views.py
+templates/main/views.py
+Full_web/settings.py

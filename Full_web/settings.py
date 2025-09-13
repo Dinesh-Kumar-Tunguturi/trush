@@ -3,10 +3,14 @@ import environ
 import dj_database_url
 import os
 
+# =====================
 # Base directory
+# =====================
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# =====================
 # Load .env file
+# =====================
 env = environ.Env()
 environ.Env.read_env(BASE_DIR / ".env")
 
@@ -15,7 +19,7 @@ environ.Env.read_env(BASE_DIR / ".env")
 # =====================
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 DEBUG = env.bool("DEBUG", default=False)
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["your-vercel-domain.vercel.app"])
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["ApplyWizz.onrender.com"])
 
 # =====================
 # Installed apps
@@ -65,11 +69,13 @@ TEMPLATES = [
 WSGI_APPLICATION = 'Full_web.wsgi.application'
 
 # =====================
-# Database (PostgreSQL for Vercel)
+# Database (PostgreSQL)
 # =====================
 DATABASES = {
     'default': dj_database_url.config(
-        default=env("DATABASE_URL", default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}")
+        default=env("DATABASE_URL"),
+        conn_max_age=600,
+        engine='django.db.backends.postgresql'
     )
 }
 

@@ -19,7 +19,8 @@ environ.Env.read_env(BASE_DIR / ".env")
 # =====================
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 DEBUG = env.bool("DEBUG", default=False)
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["ApplyWizz.onrender.com"])
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["trush.onrender.com"])
+
 
 # =====================
 # Installed apps
@@ -72,12 +73,9 @@ WSGI_APPLICATION = 'Full_web.wsgi.application'
 # Database (PostgreSQL)
 # =====================
 DATABASES = {
-    'default': dj_database_url.config(
-        default=env("DATABASE_URL"),
-        conn_max_age=600,
-        engine='django.db.backends.postgresql'
-    )
+    'default': dj_database_url.config(default=env("DATABASE_URL"))
 }
+
 
 # =====================
 # Password validators
@@ -101,9 +99,9 @@ USE_TZ = True
 # Static files
 # =====================
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
 
 # =====================
 # Email (production)

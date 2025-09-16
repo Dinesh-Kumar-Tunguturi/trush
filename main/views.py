@@ -234,7 +234,7 @@ def analyze_resume(request):
         metrics = derive_resume_metrics(resume_text, role_title)
         ats_resume_score_dict = ats_resume_scoring(metrics)
         raw_100 = ats_resume_score_dict.get("score_100") or round((ats_resume_score_dict.get("subtotal", {}).get("earned",0)/ats_resume_score_dict.get("subtotal", {}).get("max",15))*100)
-        ats_resume_score = max(0, min(89, int(raw_100)))
+        ats_resume_score = max(60, int(raw_100))
 
         ats_result = calculate_dynamic_ats_score(resume_text, github_username, leetcode_username, extracted_links)
         sections = ats_result.get("sections", {})
@@ -351,4 +351,5 @@ def why(request):
     return render(request,"why.html")
 
 def who(request):
+
     return render(request,"who.html")

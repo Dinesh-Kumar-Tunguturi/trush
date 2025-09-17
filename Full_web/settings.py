@@ -19,7 +19,7 @@ environ.Env.read_env(BASE_DIR / ".env")
 # =====================
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 DEBUG = True
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["trush.onrender.com"])
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["trush-1.onrender.com"])
 
 
 # =====================

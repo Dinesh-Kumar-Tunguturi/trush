@@ -18,8 +18,18 @@ environ.Env.read_env(BASE_DIR / ".env")
 # Core settings
 # =====================
 SECRET_KEY = env("DJANGO_SECRET_KEY")
-DEBUG = True
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["trush-1.onrender.com"])
+
+DEBUG = env.bool("DEBUG", default=True)
+
+# Default hosts for safety
+default_hosts = [
+    "localhost",
+    "127.0.0.1",
+    ".onrender.com",       # allow all Render subdomains
+]
+
+# Merge env hosts with defaults
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[]) + default_hosts
 
 # =====================
 # Installed apps

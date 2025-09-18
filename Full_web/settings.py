@@ -29,7 +29,7 @@ default_hosts = [
 ]
 
 # Merge env hosts with defaults
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[]) + default_hosts
+ALLOWED_HOSTS=trush-1.onrender.com,.onrender.com
 
 # =====================
 # Installed apps

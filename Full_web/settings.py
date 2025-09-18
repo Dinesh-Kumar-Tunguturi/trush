@@ -102,31 +102,14 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # =====================
-# Email via SMTP (default)
-# =====================
-EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
-EMAIL_HOST = env("EMAIL_HOST", default="smtp.gmail.com")
-EMAIL_PORT = env.int("EMAIL_PORT", default=587)
-EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
-EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
-if EMAIL_USE_TLS and EMAIL_USE_SSL:
-    raise ValueError("Configure either TLS(587) or SSL(465), not both")
-
-EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
-EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default=EMAIL_HOST_USER)
-SERVER_EMAIL = env("SERVER_EMAIL", default=EMAIL_HOST_USER)
-EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=30)
-
-# =====================
-# Microsoft Graph (optional)
+# Microsoft Graph (Only)
 # Toggle with MS_GRAPH_ENABLED=true in .env
 # =====================
-MS_GRAPH_ENABLED = env.bool("MS_GRAPH_ENABLED", default=False)
+MS_GRAPH_ENABLED = env.bool("MS_GRAPH_ENABLED", default=True)
 MS_GRAPH_TENANT_ID = env("MS_GRAPH_TENANT_ID", default="")
 MS_GRAPH_CLIENT_ID = env("MS_GRAPH_CLIENT_ID", default="")
 MS_GRAPH_CLIENT_SECRET = env("MS_GRAPH_CLIENT_SECRET", default="")
-MS_GRAPH_SENDER_EMAIL = env("MS_GRAPH_SENDER_EMAIL", default=DEFAULT_FROM_EMAIL)
+MS_GRAPH_SENDER_EMAIL = env("MS_GRAPH_SENDER_EMAIL", default="")
 
 # =====================
 # Default primary key field type

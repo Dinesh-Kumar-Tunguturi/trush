@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # HTTP for Microsoft Graph
-import requests  # NEW
+import requests
 
 # PDF export
 from xhtml2pdf import pisa
@@ -44,13 +44,15 @@ from .utils import (
     ats_resume_scoring,
     extract_links_combined,
     extract_text_from_docx,
+    compute_profile_scores,
+    highlight_strengths_and_gaps,
 )
 
 from .ats_score_non_tech import ats_scoring_non_tech_v2
 from .services.certifications import suggest_role_certifications
 from .forms import PaymentDetailsForm
 
-# ========= In-memory OTP / user stores (for demo, replace with DB in prod) =========
+# ========= In-memory OTP / user stores =========
 registered_users: Dict[str, str] = {}
 OTP_TTL_SECONDS = 300  # 5 min
 
@@ -64,10 +66,6 @@ def norm_mobile(mobile: str) -> str:
 _graph_token_cache: dict[str, dict] = {}
 
 def _graph_get_token() -> str:
-    """
-    Client Credentials flow — requires an Entra App with Mail.Send app-permission
-    and an admin consented client secret.
-    """
     cache_key = "token"
     tok = _graph_token_cache.get(cache_key)
     if tok and tok.get("expires_at", 0) > (requests.utils.datetime.datetime.utcnow().timestamp() + 60):
@@ -96,26 +94,21 @@ def _graph_get_token() -> str:
     return access_token
 
 def _graph_send_mail(to_email: str, subject: str, body_text: str) -> None:
-    """
-    Sends email with Microsoft Graph using the /users/{sender}/sendMail endpoint.
-    """
     access_token = _graph_get_token()
-    sender = settings.MS_GRAPH_SENDER_EMAIL  # must be a mailbox in this tenant the app is allowed to send as
-
+    sender = settings.MS_GRAPH_SENDER_EMAIL
     url = f"https://graph.microsoft.com/v1.0/users/{sender}/sendMail"
     payload = {
         "message": {
             "subject": subject,
-            "body": { "contentType": "Text", "content": body_text },
-            "toRecipients": [ { "emailAddress": { "address": to_email } } ],
-            "from": { "emailAddress": { "address": sender } }
+            "body": {"contentType": "Text", "content": body_text},
+            "toRecipients": [{"emailAddress": {"address": to_email}}],
+            "from": {"emailAddress": {"address": sender}}
         },
         "saveToSentItems": "true"
     }
     headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
     r = requests.post(url, headers=headers, json=payload, timeout=20)
     if r.status_code >= 400:
-        # Surface the exact Graph error so you can fix permissions if needed
         try:
             err = r.json()
         except Exception:
@@ -124,16 +117,10 @@ def _graph_send_mail(to_email: str, subject: str, body_text: str) -> None:
 
 # ========= Email dispatcher =========
 def send_otp_email(to_email: str, otp: str, subject: str):
-    """
-    Sends OTP via Graph if enabled, else falls back to Django SMTP.
-    """
     body = f"Your OTP is {otp}. It will expire in {OTP_TTL_SECONDS // 60} minutes."
-
     if getattr(settings, "MS_GRAPH_ENABLED", False):
-        # Use Microsoft Graph
         _graph_send_mail(to_email, subject, body)
     else:
-        # Use Django SMTP
         send_mail(
             subject=subject,
             message=body,
@@ -215,7 +202,6 @@ def verify_login_otp(request):
         return JsonResponse({"status": "error", "message": "Invalid request"}, status=405)
     email = norm_email(request.POST.get("email", ""))
     otp = (request.POST.get("otp", "") or "").strip()
-
     from django.core.cache import cache
     cache_key = f"login_otp:{email}"
     stored_otp = cache.get(cache_key)
@@ -240,7 +226,7 @@ def download_resume_pdf(request):
         return HttpResponse("We had some errors <pre>" + html + "</pre>")
     return response
 
-# ========= Pie Chart helper for tech =========
+# ========= Pie Chart helper =========
 def generate_pie_chart_tech(sections: Dict) -> str | None:
     labels, sizes = [], []
     for label, data in (sections or {}).items():
@@ -295,16 +281,16 @@ def analyze_resume(request):
             tmp.write(chunk)
         temp_path = tmp.name
 
-    if ext == ".pdf":
-        extracted_links, resume_text = extract_links_combined(temp_path)
-    elif ext == ".docx":
-        resume_text = extract_text_from_docx(temp_path)
-        extracted_links = []
-    else:
-        os.unlink(temp_path)
-        return HttpResponseBadRequest("Unsupported file format.")
-
     try:
+        if ext == ".pdf":
+            extracted_links, resume_text = extract_links_combined(temp_path)
+        elif ext == ".docx":
+            resume_text = extract_text_from_docx(temp_path)
+            extracted_links = []
+        else:
+            os.unlink(temp_path)
+            return HttpResponseBadRequest("Unsupported file format.")
+
         applicant_name = extract_applicant_name(resume_text) or "Candidate"
         github_username = request.POST.get("github_username", "").strip() or extract_github_username(resume_text) or ""
         leetcode_username = request.POST.get("leetcode_username", "").strip() or extract_leetcode_username(resume_text) or ""
@@ -321,7 +307,8 @@ def analyze_resume(request):
         metrics = derive_resume_metrics(resume_text, role_title)
         ats_resume_score_dict = ats_resume_scoring(metrics)
         raw_100 = ats_resume_score_dict.get("score_100") or round(
-            (ats_resume_score_dict.get("subtotal", {}).get("earned", 0) / ats_resume_score_dict.get("subtotal", {}).get("max", 15)) * 100
+            (ats_resume_score_dict.get("subtotal", {}).get("earned", 0) /
+             ats_resume_score_dict.get("subtotal", {}).get("max", 15)) * 100
         )
         ats_resume_score = max(0, min(89, int(raw_100)))
 
@@ -334,6 +321,18 @@ def analyze_resume(request):
             "grade": original_ats_section.get("grade", ""),
             "sub_criteria": original_ats_section.get("sub_criteria", ats_resume_score_dict.get("items", []))
         }
+
+        # ===== Profile Category Ratings =====
+        user_ratings = {
+            "GitHub": 8 if github_username else 3,
+            "LinkedIn": 8 if "linkedin.com" in resume_text.lower() else 4,
+            "Portfolio": 7 if any("http" in link and "github" not in link and "linkedin" not in link for link in extracted_links) else 2,
+            "Resume": round(ats_resume_score / 10, 1),
+            "Certifications": 6 if "certification" in resume_text.lower() or "certificate" in resume_text.lower() else 2,
+        }
+
+        profile_scores = compute_profile_scores(user_ratings)
+        strengths_gaps = highlight_strengths_and_gaps(profile_scores)
 
         desired_order = [
             "Resume (ATS Score)", "GitHub Profile", "Portfolio Website",
@@ -364,11 +363,15 @@ def analyze_resume(request):
             "missing_certifications": recommended_certs,
             "suggestions": suggestions,
             "role": role_title,
+            "profile_user_ratings": user_ratings,
+            "profile_scores": profile_scores,
+            "profile_strengths_gaps": strengths_gaps,
         }
 
         request.session["resume_context_tech"] = context
         request.session.modified = True
         return redirect("show_report_technical")
+
     finally:
         os.unlink(temp_path)
 
@@ -379,6 +382,9 @@ def analyze_resume_v2(request):
         "applicant_name": "N/A", "ats_score": 0, "overall_score_average": 0, "overall_grade": "N/A",
         "score_breakdown": {}, "suggestions": [], "pie_chart_image": None, "detected_links": [], "error": None,
         "contact_detection": "NO", "github_detection": "NO", "linkedin_detection": "NO",
+        "profile_user_ratings": {},
+        "profile_scores": {},
+        "profile_strengths_gaps": "",
     }
 
     if request.method == 'POST' and request.FILES.get('resume'):
@@ -408,39 +414,38 @@ def analyze_resume_v2(request):
 
             ats_result = ats_scoring_non_tech_v2(temp_path)
 
+            # ===== Profile Ratings =====
+            user_ratings = {
+                "GitHub": 8 if github_detection == "YES" else 3,
+                "LinkedIn": 8 if linkedin_detection == "YES" else 4,
+                "Portfolio": 7 if any("http" in link and "github" not in link and "linkedin" not in link for link in extracted_links) else 2,
+                "Resume": round((ats_result.get("score", 0) or 0)/10,1),
+                "Certifications": 6 if "certification" in text_lower or "certificate" in text_lower else 2,
+            }
+            profile_scores = compute_profile_scores(user_ratings)
+            strengths_gaps = highlight_strengths_and_gaps(profile_scores)
+
+            pie_chart_image = generate_pie_chart_tech(ats_result.get("sections") or {})
+
             context.update({
                 "applicant_name": applicant_name,
-                "ats_score": ats_result.get("ats_score", 0),
+                "ats_score": ats_result.get("score", 0),
                 "overall_score_average": ats_result.get("overall_score_average", 0),
-                "overall_grade": ats_result.get("overall_grade", "N/A"),
-                "score_breakdown": ats_result.get("score_breakdown", {}),
-                "pie_chart_image": ats_result.get("pie_chart_image"),
+                "overall_grade": ats_result.get("overall_grade", ""),
+                "score_breakdown": ats_result.get("sections", {}),
                 "suggestions": ats_result.get("suggestions", []),
-                "detected_links": extracted_links,
+                "pie_chart_image": pie_chart_image,
                 "contact_detection": contact_detection,
                 "github_detection": github_detection,
                 "linkedin_detection": linkedin_detection,
+                "profile_user_ratings": user_ratings,
+                "profile_scores": profile_scores,
+                "profile_strengths_gaps": strengths_gaps,
             })
+
         finally:
             os.unlink(temp_path)
 
-    request.session["resume_context_nontech"] = context
+    request.session["resume_context"] = context
     request.session.modified = True
     return render(request, 'score_of_non_tech.html', context)
-
-# ========= Show reports =========
-def show_report_technical(request):
-    ctx = request.session.get("resume_context_tech")
-    if not ctx: return redirect("upload_page")
-    return render(request, "resume_result.html", ctx)
-
-def show_report_nontechnical(request):
-    ctx = request.session.get("resume_context_nontech")
-    if not ctx: return redirect("upload_page")
-    return render(request, "score_of_non_tech.html", ctx)
-
-def why(request):
-    return render(request, "why.html")
-
-def who(request):
-    return render(request, "who.html")
